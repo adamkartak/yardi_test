@@ -1,7 +1,7 @@
 //Vista
 
 //Notes
-Copyright (c) 2005 by Yardi Systems
+
 
   NAME
     Aged Receivable Report, Datamart
