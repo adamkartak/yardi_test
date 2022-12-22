@@ -1,0 +1,38 @@
+//Vista
+
+//Database
+analytic YSI.Common.ReportPages.APAnalytics#YSI.Common.ReportPages.APAnalytics.ysiFinRep
+//End Database
+
+//Title
+AP Analytic
+//end title
+
+//Select
+select sCode from property where 1 = 1
+#CONDITIONS#
+
+//end select
+
+//Columns
+//Type  Name    Head1   Head2   Head3           Head4                   Show    Color   Formula Drill  Key   Width
+T,      ,       ,      ,       ,               Property,               Y,      ,       ,       3,       ,      500,
+//End columns
+
+
+
+//Filter
+//	Type,	DataTyp,Name,             	Caption,	Key ,   List,                                       																	Val1,						Val2, 			Mandatory,	Multi-Type,	Title 
+	C,      T,      PropCode,            	Property,   	N, 	524,    																					p.hmy = #hproplist#,    			,          		N,   		Y,
+	C,	T,	VendorCode,		Vendor,		,	"SELECT v.ucode, v.ulastname FROM Vendor v ORDER BY v.ucode",															,						,			N,		Y,		N,
+	C,      T,      BankCode,            	Bank,          	,      	14,   																						b.hMy = #hBank#,                         	,             		N,           	,     		N,
+	R,      M,    	PeriodFrom:PeriodTo,    Period,    	,       , 																						t.uMonth  Between  '#date1#' and '#date2#',    	,         		N,      	,   		N,
+  0,      A,      AgeAsOf,          	AgeAsOf,    	,       ,                   																				,    						,         		Y,          	,   		N,
+	R,      A,      DateFrom:DateTo,    Date,    	,       ,                   																				,    						,         		N,          	,   		N,
+	L,      T,      ReportType,          	Report Type,   	,	"Expense Distribution^Expense Distribution (Paid Only)^Payment Register^Payment Run Report^Recurring Payables^Vendor Directory^Vendor Ledger^Vendor Total",                                        ,    						,         		N,         	Y,   		N,               
+	L,	T,	Detail,			Detail,		,	"Yes^No",																					,						,			N,     		,   		N,
+	L,	T,	IntReport,		International Report?,,	"No^Yes",																					,						,			N,     		,   		N,
+	L,	T,	Tax,			Show Tax,	,	"No^Yes",																					,						,			N,     		,   		N,
+	L,	T,	TranCurrency,		Show Tran Currency,,	"No^Yes",																					,						,			N,     		,   		N,
+
+//end filter

@@ -1,0 +1,194 @@
+//Vista
+//Notes
+Copyright (c) 2001 by Yardi Systems, Inc.
+	NAME
+		rs_sql_Invoice_Register.SSRS.txt
+	
+	DESCRIPTION
+		This report provides counts and details about the invoice registers pushed
+		into the clients environment by Full Service.
+
+	NOTES
+		This report is for SQL Server only.	
+
+	MODIFIED
+		06/11/2012	I removed the inner joins on the transaction tables to
+				correctly report the toll log counts when invoices or
+				batch headers have been deleted. I also removed the filter
+				options for everything but the dates created, tweaked the
+				date arithmetic to account for items entered after mid-
+				night on the limit of the range, and provided a Columns
+				section so you can run the report to screen without the
+				Crystal file for exporting and troubleshooting.
+				                                       - Jonathan Hamilton
+													   
+													   
+	MODIFIED
+		01/01/2016 I have changed almost everything from the original report. 
+		The original was using aptolllog, and not cross refrencing rpayscaninvoice.
+		I have rewritten the select statment to avoid the use of aptolllog since that is
+		known to have issues. I did not touch the original "columns" section as this does 
+		not effect the output of this report. The tables rpayscaninvoice, and rpayscanbatch 
+		should be going through some maintance which will allow me to add more information
+		to this report (mainly marking expidited invoices, and scan dates). I know there are 
+		some typos in what i have called certain parameters and other items, but i have made 
+		sure they are consistant in both this file and the RDLC used along with it. 
+		-Anthony Somoano
+		
+	Modified
+		02/05/2016 Had to account for a couple complexities. One being when an entry in 
+		rPayScanInvoice has a '0' for both hPayscanir and hPayscanbatch columns. This 
+		happens when something goes wrong when full service tries to push it to the 
+		Payscan DBs so we will not count these. Also found that if there are invoices 
+		that client has not deleted, nor puit in any detail line information they were not showing
+		on the list of invoices. was able to avoid this issue by changing "join" to 
+		"left outer join" when connecting the sub-select that will note if an Ir has multiple
+		properties on it. Also added another coulmn 'Deleted?' to better organise the IRs
+													   
+		
+//End Notes
+
+//Database
+SSRS  "rx_sql_Invoice_Registers.rdlc"
+//End Database
+
+//Crystal
+cryactive Y
+crytree N
+param postfr= #postfr#
+param postto= #postto#
+param rPaycanInvoice= select count(distinct rp.hmy) from rpayscaninvoice rp join GLInvRegTrans gl on rp.hPayscanIR = gl.hmy where DATEADD(dd, DATEDIFF(dd, 0, sdatecreated), 0) between '#postfr#' and '#postto#' and rp.sdatasource = 'FS'
+param DeletedInvoices=  select count( r.hpayscanir)  from RPayscanInvoice r  left outer join rpayscanbatch b on r.hRPayscanBatch = b.hMy where convert(date,b.dtDate,10) between '#postfr#' and '#postto#'and r.hPayscanIR not in (select hmy from glinvregtrans) and r.hpayscanir <> 0 and r.sdatasource = 'FS'
+param TotalInvoices= select ((select count(distinct rp.hpayscanir) from rpayscaninvoice rp join GLInvRegTrans gl on rp.hPayscanIR = gl.hmy where DATEADD(dd, DATEDIFF(dd, 0, sdatecreated), 0) between '#postfr#' and '#postto#' and rp.sdatasource = 'FS') + (select count( r.hpayscanir)  from RPayscanInvoice r  left outer join rpayscanbatch b on r.hRPayscanBatch = b.hMy where convert(date,b.dtDate,10) between '#postfr#' and '#postto#'and r.hPayscanIR not in (select hmy from glinvregtrans) and r.hpayscanir <> 0 and r.sdatasource = 'FS' ))
+
+//End Crystal
+
+//Title
+Full Service Invoice Register(NEW)
+//end title
+
+//Select
+SELECT DISTINCT CONVERT(VARCHAR(20), ir.hparent2) 
+                BatchId, 
+                ir.hmy 
+                CTRL, 
+                CONVERT(VARCHAR(20), CONVERT(DATE, ir.sdatecreated, 10)) 
+                Payabledate, 
+                CASE 
+                  WHEN ir.upostdate IS NOT NULL THEN 
+CONVERT(VARCHAR(2), Datepart(mm, CONVERT(DATE, ir.upostdate, 10))) 
++ '/' 
++ CONVERT(VARCHAR(4), Year(CONVERT(DATE, ir.upostdate, 103))) 
+ELSE 'No Data Enterd' 
+END                                                              PostDate, 
+CONVERT(VARCHAR(20), ir.stotalamount)                            TotalAmount, 
+ir.uref                                                          Reference, 
+ir.snotes                                                        sNotes, 
+CASE 
+WHEN pn.ucode IS NULL THEN 'No Data Entered' 
+ELSE pn.ucode 
+END                                                              Person, 
+CASE 
+WHEN pn.ulastname IS NULL THEN 'No Data Entered' 
+ELSE pn.ulastname 
+END                                                              Vendor, 
+CASE 
+WHEN ird.hprop = 'multiple' THEN 'Multiple' 
+WHEN ird.hprop = 'None' THEN 'None' 
+WHEN p.scode IS NULL THEN 'No Data Enterd' 
+ELSE p.scode 
+END                                                              PropertyCode, 
+CONVERT(VARCHAR(2), Datepart(mm, CONVERT(DATE, ir.sdateoccurred, 10))) 
++ '/' 
++ CONVERT(VARCHAR(4), Day(CONVERT(DATE, ir.sdateoccurred, 103))) 
++ '/' 
++ CONVERT(VARCHAR(4), Year(CONVERT(DATE, ir.sdateoccurred, 103)))InvoiceDate, 
+rp.po                                                            PO, 
+CASE 
+WHEN RP.bExpedited = 'YES' then 'EXP'
+ELSE ''
+END 															Expedited,
+rp.iNoPages													NmbrOfPages,
+'1'                                                              AS 'Deleted?' 
+FROM   rpayscaninvoice rp 
+       JOIN glinvregtrans ir 
+         ON ir.hmy = rp.hpayscanir 
+       LEFT OUTER JOIN 
+       /* This table about to be added makes it possible to show the property on the IR, and if there is more that 1 it shows 'multiple' */
+       (SELECT mul.hinvorrec, 
+               CASE 
+                 WHEN Count (mul.hinvorrec) = 1 THEN 
+                 CONVERT(VARCHAR(8), Min(mul.hprop)) 
+                 ELSE 'multiple' 
+               END hprop 
+        FROM   (SELECT hinvorrec, 
+                       CASE 
+                         WHEN hprop IS NOT NULL THEN 
+                         CONVERT(VARCHAR(8), Min(hprop)) 
+                         ELSE 'None' 
+                       END hprop 
+                FROM   glinvregdetail 
+                GROUP  BY hinvorrec, 
+                          hprop) Mul 
+        GROUP  BY mul.hinvorrec) ird 
+                    ON ir.hmy = ird.hinvorrec 
+       LEFT OUTER JOIN person pn 
+                    ON ir.hperson = pn.hmy 
+       LEFT OUTER JOIN property p 
+                    ON ird.hprop = CONVERT(VARCHAR(8), p.hmy) 
+WHERE  1 = 1 
+       AND Dateadd(dd, Datediff(dd, 0, ir.sdatecreated), 0) BETWEEN 
+           '#postfr#' and '#postto#'and rp.sdatasource = 'FS'
+UNION ALL 
+SELECT b.hpayscanbatch, 
+       hpayscanir CTRL, 
+       CONVERT(DATE, b.dtdate, 10), 
+       'Deleted', 
+       totamt     TotalAmount, 
+       invno, 
+       'Deleted', 
+       pn.ucode, 
+       pn.ulastname, 
+       sproperty, 
+       r.invdate, 
+       r.po,
+CASE 
+WHEN R.bExpedited = 'YES' then 'EXP'
+ELSE ''
+END 															Expedited,
+r.iNoPages													NmbrOfPages,	   
+       '2'        AS 'Deleted?' 
+FROM   rpayscaninvoice r 
+       LEFT OUTER JOIN person pn 
+                    ON pn.ucode = r.svendor 
+       LEFT OUTER JOIN rpayscanbatch b 
+                    ON r.hrpayscanbatch = b.hmy 
+WHERE  r.hpayscanir NOT IN (SELECT hmy 
+                            FROM   glinvregtrans) 
+       AND CONVERT(DATE, b.dtdate, 10) BETWEEN 
+           '#postfr#' and '#postto#'
+       AND r.hpayscanir <> 0 and r.sdatasource = 'FS'
+ORDER  BY 'Deleted?', 
+          ctrl 
+
+
+//END SELECT
+
+//Columns
+//Type,      Name, Head1,   Head2,    Head3,  Head4, Show, Color, Formula, Drill, Key, Width
+     I,    hbatch,      ,        ,    BatchID, Number,    Y,      ,        ,      ,    ,   400,
+     I,     hctrl,      , CTRL, CTRL, Number,    Y,      ,        ,      ,    ,   400,
+     D, batchdate,      ,   Batch, Creation,   Date,    Y,      ,        ,      ,    ,   400,
+     D,  postdate,      ,        ,     Post,  Month,    Y,      ,        ,      ,    ,   400,
+     D,   invdate,      ,        ,  TotAmmount,   Date,    Y,      ,        ,      ,    ,   400,
+     T,   hperson,      ,        ,    Refence,   Code,    Y,      ,        ,     5,    ,   400,
+     T,     hprop,      ,        , Property,   Code,    Y,      ,        ,     3,    ,   400,
+     T,          ,      ,        ,         , Person,    Y,      ,        ,      ,    ,   600,
+     T,          ,      ,        ,  Vendor, Number,    Y,      ,        ,      ,    ,   600,
+     T,          ,      ,        ,  PropCode,  Notes,    Y,      ,        ,      ,    ,  1800,
+//End columns
+
+//Filter
+//Type,	Data,          Name,      Caption, Key, List, Val1, Val2, Mandatory, Multi-Type, Title 
+     R,    A, postfr:postTo, Date Created,    ,     ,     ,     ,         Y,           ,      , 
+//End Filter
